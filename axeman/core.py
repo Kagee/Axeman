@@ -235,21 +235,28 @@ def process_worker(result_info, output_dir="/tmp"):
 
     return True
 
-async def get_certs_and_print():
+async def get_certs_and_print(list_mode="oneline", headers=True):
     async with aiohttp.ClientSession(conn_timeout=5) as session:
         ctls = await certlib.retrieve_all_ctls(session)
-        print("Found {} CTLs...".format(len(ctls)))
+        if list_mode != "pretty":
+            if headers:
+                print("url\ttree_size\tblock_size\toperated_by\tdescription")
+        else:
+            print("Found {} CTLs...".format(len(ctls)))
         for log in ctls:
             try:
                 log_info = await certlib.retrieve_log_info(log, session)
             except:
                 continue
+            if list_mode == 'pretty':
+                print(log['description'])
+                print("    \- URL:            {}".format(log['url']))
+                print("    \- Owner:          {}".format(log_info['operated_by']))
+                print("    \- Cert Count:     {}".format(locale.format("%d", log_info['tree_size']-1, grouping=True)))
+                print("    \- Max Block Size: {}\n".format(log_info['block_size']))
+            else:
+                print("{}\t{}\t{}\t{}\t{}".format(log['url'], log_info['tree_size']-1, log_info['block_size'], log_info['operated_by'], log['description']))
 
-            print(log['description'])
-            print("    \- URL:            {}".format(log['url']))
-            print("    \- Owner:          {}".format(log_info['operated_by']))
-            print("    \- Cert Count:     {}".format(locale.format("%d", log_info['tree_size']-1, grouping=True)))
-            print("    \- Max Block Size: {}\n".format(log_info['block_size']))
 
 def main():
     loop = asyncio.get_event_loop()
@@ -262,7 +269,9 @@ def main():
     parser.add_argument('-s', dest='start_offset', action='store', default=0, type=int,
                         help='Skip N number of lists before starting')
 
-    parser.add_argument('-l', dest="list_mode", action="store_true", help="List all available certificate lists")
+    parser.add_argument('-l', dest="list_mode", action="store", help="List all available certificate lists in either pretty or oneline mode")
+
+    parser.add_argument('-e', dest="headers", action="store_true", help="Print headers (in csv files and when listing all certificate list in oneline mode")
 
     parser.add_argument('-u', dest="ctl_url", action="store", default=None, help="Retrieve this CTL only")
 
@@ -275,9 +284,9 @@ def main():
     parser.add_argument('-c', dest='concurrency_count', action='store', default=50, type=int, help="The number of concurrent downloads to run at a time")
 
     args = parser.parse_args()
-
+    
     if args.list_mode:
-        loop.run_until_complete(get_certs_and_print())
+        loop.run_until_complete(get_certs_and_print(list_mode=args.list_mode, headers=args.headers))
         return
 
     handlers = [logging.FileHandler(args.log_file), logging.StreamHandler()]
