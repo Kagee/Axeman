@@ -284,7 +284,7 @@ def main():
     parser.add_argument('-c', dest='concurrency_count', action='store', default=50, type=int, help="The number of concurrent downloads to run at a time")
 
     args = parser.parse_args()
-    
+
     if args.list_mode:
         loop.run_until_complete(get_certs_and_print(list_mode=args.list_mode, headers=args.headers))
         return
@@ -299,9 +299,9 @@ def main():
     logging.info("Starting...")
 
     if args.ctl_url:
-        loop.run_until_complete(retrieve_certificates(loop, url=args.ctl_url, ctl_offset=int(args.ctl_offset), concurrency_count=args.concurrency_count))
+        loop.run_until_complete(retrieve_certificates(loop, url=args.ctl_url, ctl_offset=int(args.ctl_offset), output_directory=args.output_dir, concurrency_count=args.concurrency_count))
     else:
-        loop.run_until_complete(retrieve_certificates(loop, concurrency_count=args.concurrency_count))
+        loop.run_until_complete(retrieve_certificates(loop, output_directory=args.output_dir, concurrency_count=args.concurrency_count))
 
 if __name__ == "__main__":
     main()
