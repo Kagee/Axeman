@@ -82,6 +82,13 @@ async def retrieve_certificates(loop, url=None, ctl_offset=0, output_directory='
 
         for log in ctl_logs:
             if url and url not in log['url']:
+                '''
+                   If we have set a url, skip this loop if the log we check has another url
+                   This allows us to:
+                   f we don't specify a url, to use the same loop code for both all and a single log
+                   2. If we specify a url, make sure that that url is one of the ones in the list
+                      (e.g, this code won't download urls not in Google's list without patching)
+                '''
                 continue
             work_deque = deque()
             download_results_queue = asyncio.Queue(maxsize=MAX_QUEUE_SIZE)
