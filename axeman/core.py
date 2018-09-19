@@ -259,14 +259,14 @@ def main():
     parser.add_argument('-f', dest='log_file', action='store', default='/tmp/axeman.log',
                         help='location for the axeman log file')
 
-    parser.add_argument('-s', dest='start_offset', action='store', default=0,
+    parser.add_argument('-s', dest='start_offset', action='store', default=0, type=int,
                         help='Skip N number of lists before starting')
 
     parser.add_argument('-l', dest="list_mode", action="store_true", help="List all available certificate lists")
 
     parser.add_argument('-u', dest="ctl_url", action="store", default=None, help="Retrieve this CTL only")
 
-    parser.add_argument('-z', dest="ctl_offset", action="store", default=0, help="The CTL offset to start at")
+    parser.add_argument('-z', dest="ctl_offset", action="store", default=0, type=int, help="The CTL offset to start at")
 
     parser.add_argument('-o', dest="output_dir", action="store", default="/tmp", help="The output directory to store certificates in")
 
