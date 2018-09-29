@@ -15,6 +15,7 @@ import aiohttp
 import aioprocessing
 import logging
 import locale
+import functools
 
 try:
     locale.setlocale(locale.LC_ALL, 'en_US')
@@ -132,7 +133,7 @@ async def retrieve_certificates(loop, url=None, ctl_offset=0, output_directory='
 
 async def processing_coro(download_results_queue, output_dir="/tmp"):
     logging.info("Starting processing coro and process pool")
-    process_pool = aioprocessing.AioPool(initargs=(output_dir,))
+    process_pool = aioprocessing.AioPool()
 
     done = False
 
@@ -157,7 +158,7 @@ async def processing_coro(download_results_queue, output_dir="/tmp"):
                 os.makedirs(csv_storage)
 
         if len(entries_iter) > 0:
-            await process_pool.coro_map(process_worker, entries_iter)
+            await process_pool.coro_map(functools.partial(process_worker, output_dir=output_dir), entries_iter)
 
         logging.debug("Done mapping! Got results")
 
