@@ -28,7 +28,7 @@ from . import certlib
 DOWNLOAD_CONCURRENCY = 50
 MAX_QUEUE_SIZE = 1000
 
-async def download_worker(session, log_info, work_deque, download_queue):
+async def download_worker(session, log_info, work_deque, download_queue, output_dir):
     while True:
         try:
             start, end = work_deque.popleft()
@@ -46,7 +46,7 @@ async def download_worker(session, log_info, work_deque, download_queue):
             except Exception as e:
                 logging.error("Exception getting block {}-{}! {}".format(start, end, e))
         else:  # Notorious for else, if we didn't encounter a break our request failed 3 times D:
-            with open('/tmp/fails.csv', 'a') as f:
+            with open('{}/fails.csv'.format(output_dir), 'a') as f:
                 f.write(",".join([log_info['url'], str(start), str(end)]))
             return
 
@@ -107,10 +107,9 @@ async def retrieve_certificates(loop, url=None, ctl_offset=0, output_directory='
                 continue
 
             download_tasks = asyncio.gather(*[
-                download_worker(session, log_info, work_deque, download_results_queue)
+                download_worker(session, log_info, work_deque, download_results_queue, output_dir=output_directory)
                 for _ in range(concurrency_count)
             ])
-
             processing_task    = asyncio.ensure_future(processing_coro(download_results_queue, output_dir=output_directory))
             queue_monitor_task = asyncio.ensure_future(queue_monitor(log_info, work_deque, download_results_queue))
 
