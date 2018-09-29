@@ -24,7 +24,10 @@ except:
 
 from OpenSSL import crypto
 
-from . import certlib
+try:
+    from . import certlib
+except ImportError:
+    import certlib
 
 DOWNLOAD_CONCURRENCY = 50
 MAX_QUEUE_SIZE = 1000
@@ -117,11 +120,11 @@ async def retrieve_certificates(loop, url=None, ctl_offset=0, output_directory='
             asyncio.ensure_future(download_tasks)
 
             await download_tasks
-
+            logging.info("Download tasks complete")
             await download_results_queue.put(None) # Downloads are done, processing can stop
 
             await processing_task
-
+            logging.info("Precessing tasks complete")
             queue_monitor_task.cancel()
 
             logging.info("Completed {}, stored at {}!".format(
