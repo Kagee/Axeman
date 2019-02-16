@@ -6,6 +6,14 @@ from collections import OrderedDict
 
 from OpenSSL import crypto
 
+import urllib.request
+import urllib.parse
+import json
+import logging
+import requests
+import queue
+from collections import deque
+
 CTL_LISTS = 'https://www.gstatic.com/ct/log_list/log_list.json'
 
 CTL_INFO = "http://{}/ct/v1/get-sth"
@@ -38,45 +46,46 @@ PreCertEntry = Struct(
     Terminated
 )
 
-async def retrieve_all_ctls(session=None):
-    async with session.get(CTL_LISTS) as response:
-        ctl_lists = await response.json()
+def retrieve_all_ctls():
+    res = urllib.request.urlopen(CTL_LISTS)
+    res_body = res.read()
+    ctl_lists = json.loads(res_body.decode("utf-8"))
+    logs = ctl_lists['logs']
+    for log in logs:
+        log['disqualified'] = 'disqualified_at' in log
+        if log['url'].endswith('/'):
+            log['url'] = log['url'][:-1]
+        owner = _get_owner(log, ctl_lists['operators'])
+        log['operated_by'] = owner
+    return logs
 
-        logs = ctl_lists['logs']
 
-        for log in logs:
-            if log['url'].endswith('/'):
-                log['url'] = log['url'][:-1]
-            owner = _get_owner(log, ctl_lists['operators'])
-            log['operated_by'] = owner
+def get_max_block_size(log, ses):
+    logging.info("Trying to get 10000 entries to determine block size")
+    with ses.get(DOWNLOAD.format(log['url'], 0, 10000)) as response:
+        entries = response.json()
+        return len(entries['entries'])
 
-        return logs
+def retrieve_log_info(log, ses):
+    block_size = get_max_block_size(log, ses)
+    with ses.get(CTL_INFO.format(log['url'])) as response:
+        info = response.json()
+        info['block_size'] = block_size
+        info.update(log)
+        return info
 
 def _get_owner(log, owners):
     owner_id = log['operated_by'][0]
     owner = next(x for x in owners if x['id'] == owner_id)
     return owner['name']
 
-async def get_max_block_size(log, session):
-    async with session.get(DOWNLOAD.format(log['url'], 0, 10000)) as response:
-        entries = await response.json()
-        return len(entries['entries'])
 
-async def retrieve_log_info(log, session):
-    block_size = await get_max_block_size(log, session)
-
-    async with session.get(CTL_INFO.format(log['url'])) as response:
-        info = await response.json()
-        info['block_size'] = block_size
-        info.update(log)
-        return info
-
-async def populate_work(work_deque, log_info, start=0):
-    tree_size = log_info['tree_size']
-    block_size = log_info['block_size']
+def populate_work(log):
+    tree_size = log['tree_size']
+    block_size = log['block_size']
 
     total_size = tree_size - 1
-
+    start = log['start']
     end = start + block_size
 
     if end > tree_size:
@@ -86,7 +95,8 @@ async def populate_work(work_deque, log_info, start=0):
 
     if chunks == 0:
         raise Exception("No work needed!")
-
+    logging.info("Populating chunk queue ... ({})".format(chunks))
+    chunk_list = []
     for _ in range(chunks):
         # Cap the end to the last record in the DB
         if end >= tree_size:
@@ -95,11 +105,12 @@ async def populate_work(work_deque, log_info, start=0):
         assert end >= start, "End {} is less than start {}!".format(end, start)
         assert end < tree_size, "End {} is less than tree_size {}".format(end, tree_size)
 
-        work_deque.append((start, end))
-
+        #logging.info("Chunk: {}-{}".format(start, end))
+        chunk_list.append((start, end))
         start += block_size
 
         end = start + block_size + 1
+    return deque(chunk_list)
 
 def add_all_domains(cert_data):
     all_domains = []
@@ -143,9 +154,9 @@ def dump_cert(certificate):
             "CN": subject.CN
         },
         "extensions": dump_extensions(certificate),
-        "not_before": not_before,
-        "not_after": not_after,
-        "as_der": base64.b64encode(crypto.dump_certificate(crypto.FILETYPE_ASN1, certificate)).decode('utf-8')
+        #"not_before": not_before,
+        #"not_after": not_after,
+        #"as_der": base64.b64encode(crypto.dump_certificate(crypto.FILETYPE_ASN1, certificate)).decode('utf-8')
     }
 
 def dump_extensions(certificate):
