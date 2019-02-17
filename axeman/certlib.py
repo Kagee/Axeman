@@ -16,9 +16,9 @@ from collections import deque
 
 CTL_LISTS = 'https://www.gstatic.com/ct/log_list/log_list.json'
 
-CTL_INFO = "http://{}/ct/v1/get-sth"
+CTL_INFO = "https://{}/ct/v1/get-sth"
 
-DOWNLOAD = "http://{}/ct/v1/get-entries?start={}&end={}"
+DOWNLOAD = "https://{}/ct/v1/get-entries?start={}&end={}"
 
 from construct import Struct, Byte, Int16ub, Int64ub, Enum, Bytes, Int24ub, this, GreedyBytes, GreedyRange, Terminated, Embedded
 
@@ -46,33 +46,40 @@ PreCertEntry = Struct(
     Terminated
 )
 
-def retrieve_all_ctls():
-    res = urllib.request.urlopen(CTL_LISTS)
-    res_body = res.read()
-    ctl_lists = json.loads(res_body.decode("utf-8"))
-    logs = ctl_lists['logs']
-    for log in logs:
-        log['disqualified'] = 'disqualified_at' in log
-        if log['url'].endswith('/'):
-            log['url'] = log['url'][:-1]
-        owner = _get_owner(log, ctl_lists['operators'])
-        log['operated_by'] = owner
-    return logs
+def retrieve_all_ctls(ses):
+    with ses.get(CTL_LISTS, timeout=10) as response:
+        ctl_lists = response.json()
+        logs = ctl_lists['logs']
+        for log in logs:
+            log['disqualified'] = 'disqualified_at' in log
+            if log['url'].endswith('/'):
+                log['url'] = log['url'][:-1]
+            owner = _get_owner(log, ctl_lists['operators'])
+            log['operated_by'] = owner
+        return logs
 
 
 def get_max_block_size(log, ses):
     logging.info("Trying to get 10000 entries to determine block size")
-    with ses.get(DOWNLOAD.format(log['url'], 0, 10000)) as response:
+    with ses.get(DOWNLOAD.format(log['url'], 0, 10000), timeout=10) as response:
         entries = response.json()
         return len(entries['entries'])
 
-def retrieve_log_info(log, ses):
-    block_size = get_max_block_size(log, ses)
-    with ses.get(CTL_INFO.format(log['url'])) as response:
-        info = response.json()
-        info['block_size'] = block_size
-        info.update(log)
-        return info
+def retrieve_log_info(log, ses, get_block_size = True):
+    block_size = -1
+    if get_block_size:
+        print("getting block sixze")
+        block_size = get_max_block_size(log, ses)    
+    try:
+        with ses.get(CTL_INFO.format(log['url']), timeout=10) as response:
+            info = response.json()
+            info['block_size'] = block_size
+            info.update(log)
+            return info
+    except ConnectionResetError:
+        return {"tree_size": -1}
+    except requests.exceptions.ConnectionError:
+        return {"tree_size": -1}
 
 def _get_owner(log, owners):
     owner_id = log['operated_by'][0]
