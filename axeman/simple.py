@@ -12,6 +12,9 @@ import requests
 import queue
 from collections import deque
 import gzip
+import time
+import glob
+import csv
 
 try:
     locale.setlocale(locale.LC_ALL, 'en_US')
@@ -25,14 +28,28 @@ import certlib
 LOG_FORMAT = '[%(levelname)s:%(name)s:%(funcName)s] %(asctime)s - %(message)s'
 LOG_LEVEL = logging.DEBUG
 
-def log_pretty_print(log):
-    print("{description}:\n\tURL: {url}\n\tDisqualified: {disqualified}".format(**log))
+def log_pretty_print(log, ses):
+    time1 = time.time()
+    log_info = certlib.retrieve_log_info(log,ses, False)
+    time2 = time.time()
+    log_info['_time_get_log_info'] = '%0.3f ms' % ((time2-time1)*1000.0)
+    l = {**log, **log_info}
+    #print("{tree_size}\t{url}\t{disqualified}".format(**l))
+    return l
+
 
 def logs_pretty_print():
-    logs = certlib.retrieve_all_ctls()
+    ses = requests.Session()
+    logs = certlib.retrieve_all_ctls(ses)
+    ls = []
     for log in logs:
-        log_pretty_print(log)
-
+        ls.append(log_pretty_print(log,ses))
+    num_sort = sorted(ls, key=lambda k: k['tree_size'])
+    for l in num_sort:
+        print("{tree_size}\t{url}\t{disqualified}\t{_time_get_log_info}".format(**l))
+    
+    
+    
 def find_start(log_info, start):
     if start == 0:
         log_info['start'] = 0
@@ -57,28 +74,31 @@ def setup_file_logger(args):
     fileHandler.setFormatter(formatter)
     logging.getLogger().addHandler(fileHandler)
 
-def setup_log_data(args, ses):
-    logs = certlib.retrieve_all_ctls()
+def setup_log_data(args, ses, get_block_size = True):
+    logs = certlib.retrieve_all_ctls(ses)
     try:
         log = [ x for x in logs if x['url'] == args.ctl_url ][0]
     except IndexError:
         logging.error("Invalid CTL log URL: {}".format(args.ctl_url))
-        return 1
+        sys.exit(1)
     
     log['storage_dir'] = args.storage_dir
     
-    l = {**log, **certlib.retrieve_log_info(log,ses)}
+    l = {**log, **certlib.retrieve_log_info(log,ses,get_block_size)}
     
     l = find_start(l, args.ctl_start)
     l = find_end(l, args.ctl_end)
-    import pprint
-    pp = pprint.PrettyPrinter(indent=4)
-    logging.info(pp.pformat(l))
+    #import pprint
+    #pp = pprint.PrettyPrinter(indent=4)
+    #logging.info(pp.pformat(l))
     return l
 
 def download_log(args):
     if not os.path.exists(args.storage_dir):
        os.makedirs(args.storage_dir)
+    elif args.ctl_start == 0:
+        logging.error("Storage directory exists, -s should be > 0")
+        sys.exit(1)
     ses = requests.Session()
     setup_file_logger(args)
     l = setup_log_data(args, ses)
@@ -145,13 +165,12 @@ def download_log(args):
 
         logging.info("from: {} to: {}".format(index_min,index_max))
         csv_file = os.path.join(l['storage_dir'], "{0:011d}-{1:011d}.csv.gz".format(index_min, index_max))
+        csv_tmp_file = os.path.join(l['storage_dir'], "{0:011d}-{1:011d}.csv.gz.tmp".format(index_min, index_max))
         logging.info(csv_file)
 
-        with gzip.open(csv_file, 'wb') as f:
+        with gzip.open(csv_tmp_file, 'wb') as f:
             f.write("\n".join(data).encode("utf-8"))
-        #with open(csv_file, 'w') as f:
-        #    f.write("\n".join(data))
-   
+        os.rename(csv_tmp_file, csv_file)
     
 def glue_dir(path, url):
     return os.path.join(path, 
@@ -159,31 +178,68 @@ def glue_dir(path, url):
             [c for c in url.replace("/",".") if c.isalpha() or c.isdigit() or c=='.']
             ).rstrip()
             )
-    
+
+
+def check_log(args):
+    logging.info("Checking log at URL {}".format(args.ctl_url))
+    if not os.path.exists(args.storage_dir):
+        return 1
+    logging.info("Storage dir exists: {}".format(args.storage_dir))
+    datafiles = glob.glob(os.path.join(args.storage_dir, '*.csv.gz'))
+    l = setup_log_data(args, requests.Session(), False)
+    nums = []
+    empty = 0
+    logging.info("Looping through {} datafiles:".format(len(datafiles)))
+    #for gz in datafiles:
+    for idx, gz in enumerate(datafiles):
+        if idx % 1000 == 0:
+            sys.stderr.write(".")
+            sys.stderr.flush()
+        with gzip.open(gz, mode='rt') as f:
+            reader = csv.reader(f, delimiter=';', quoting=csv.QUOTE_NONE)
+            for row in reader:
+                nums.append(int(row[0]))
+                if row[1].strip() == "":
+                    #logging.error("index {} was empty!".format(row[0]))
+                    empty += 1
+    sys.stderr.write("\n")
+    nums = sorted(set(nums))
+    logging.info("{operated_by}/{description}:".format( **l))
+    logging.info("tree size: {:,}".format(l['tree_size']))
+    ldiff = l['tree_size']-(len(nums)-1)
+    logging.info("length: {:,} ({:,}, {:.1%})".format(len(nums)-1, ldiff,ldiff/l['tree_size']))
+    ndiff = l['tree_size']-nums[-1]
+    logging.info("last num: {:,} ({:,}, {:.1%})".format(nums[-1], ndiff,ndiff/l['tree_size']))
+    logging.info("To continue: python3.6 simple.py -u '{}' -s {}".format(l['url'], min(len(nums)-1, nums[-1])-10 ))
+    return 0
+
 def main():
     parser = argparse.ArgumentParser(description='Pull down certificate transparency list information')
-
     parser.add_argument('-l', dest="list_mode", action="store_true", help="List all available certificate lists")
-
+    parser.add_argument('-c', dest="check_mode", action="store_true", help="Check the status of a log")
     parser.add_argument('-u', dest="ctl_url", action="store", default="", help="CTL url to download")
-
     parser.add_argument('-s', dest="ctl_start", action="store", type=int, default=0, help="The CTL offset to start at (will be block alligned)")
     parser.add_argument('-e', dest="ctl_end", action="store", type=int, default=-1, help="The CTL offset to end at (will be block alligned)")
-    
     parser.add_argument('-o', dest="output_dir", action="store", default="./output", help="The output directory to create log folders in")
-
     parser.add_argument('-v', dest="verbose", action="store_true", help="Print out verbose/debug info")
-
     args = parser.parse_args()
 
     if args.list_mode:
-        logs_pretty_print()
-        return
+        return logs_pretty_print()
 
     logging.basicConfig(format=LOG_FORMAT, level=LOG_LEVEL)
 
-    logging.info("Starting...")
+    
     args.storage_dir = glue_dir(args.output_dir, args.ctl_url)
+    
+    if args.check_mode:
+        return check_log(args)
+
+    if args.ctl_url == "":
+        parser.print_help(sys.stderr)
+        sys.exit(1)
+    
+    logging.info("Starting...")
     return download_log(args)
 
 
