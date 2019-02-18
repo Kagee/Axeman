@@ -1,20 +1,22 @@
 import argparse
 
 import sys
-import math
+#import math
 import base64
 import os
-import traceback
-import hashlib
+#import traceback
+#import hashlib
 import logging
 import locale
 import requests
-import queue
-from collections import deque
+#import queue
+#from collections import deque
 import gzip
 import time
 import glob
 import csv
+import json
+#import datetime
 
 try:
     locale.setlocale(locale.LC_ALL, 'en_US')
@@ -58,6 +60,7 @@ def find_start(log_info, start):
     logging.info("Block aligning start {} to {}".format(start, log_info['start']))
     return log_info
 
+
 def find_end(log_info, end):
     if end == -1:
         log_info['end'] = log_info['tree_size']
@@ -68,11 +71,13 @@ def find_end(log_info, end):
     logging.info("Block aligning end {} to {}".format(end, log_info['end']))
     return log_info
 
+
 def setup_file_logger(args):
-    fileHandler = logging.FileHandler("{0}/{1}.log".format(args.storage_dir, "run"))
+    file_handler = logging.FileHandler("{0}/{1}.log".format(args.storage_dir, "run"))
     formatter = logging.Formatter(LOG_FORMAT)
-    fileHandler.setFormatter(formatter)
-    logging.getLogger().addHandler(fileHandler)
+    file_handler.setFormatter(formatter)
+    logging.getLogger().addHandler(file_handler)
+
 
 def setup_log_data(args, ses, get_block_size = True):
     logs = certlib.retrieve_all_ctls(ses)
@@ -80,18 +85,20 @@ def setup_log_data(args, ses, get_block_size = True):
         log = [ x for x in logs if x['url'] == args.ctl_url ][0]
     except IndexError:
         logging.error("Invalid CTL log URL: {}".format(args.ctl_url))
-        sys.exit(1)
+        if not args.no_check:
+            sys.exit(1)
+        else:
+            log['url'] = args.ctl_url
+            log[''] = args.ctl_url
     
     log['storage_dir'] = args.storage_dir
     
-    l = {**log, **certlib.retrieve_log_info(log,ses,get_block_size)}
+    combined_logs = {**log, **certlib.retrieve_log_info(log,ses,get_block_size)}
     
-    l = find_start(l, args.ctl_start)
-    l = find_end(l, args.ctl_end)
-    #import pprint
-    #pp = pprint.PrettyPrinter(indent=4)
-    #logging.info(pp.pformat(l))
-    return l
+    combined_logs = find_start(combined_logs, args.ctl_start)
+    combined_logs = find_end(combined_logs, args.ctl_end)
+    return combined_logs
+
 
 def download_log(args):
     if not os.path.exists(args.storage_dir):

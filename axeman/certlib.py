@@ -46,6 +46,7 @@ PreCertEntry = Struct(
     Terminated
 )
 
+
 def retrieve_all_ctls(ses):
     with ses.get(CTL_LISTS, timeout=10) as response:
         ctl_lists = response.json()
@@ -65,6 +66,7 @@ def get_max_block_size(log, ses):
         entries = response.json()
         return len(entries['entries'])
 
+
 def retrieve_log_info(log, ses, get_block_size = True):
     block_size = -1
     if get_block_size:
@@ -80,6 +82,7 @@ def retrieve_log_info(log, ses, get_block_size = True):
         return {"tree_size": -1}
     except requests.exceptions.ConnectionError:
         return {"tree_size": -1}
+
 
 def _get_owner(log, owners):
     owner_id = log['operated_by'][0]
@@ -119,6 +122,7 @@ def populate_work(log):
         end = start + block_size + 1
     return deque(chunk_list)
 
+
 def add_all_domains(cert_data):
     all_domains = []
 
@@ -136,6 +140,7 @@ def add_all_domains(cert_data):
     cert_data['leaf_cert']['all_domains'] = list(OrderedDict.fromkeys(all_domains))
 
     return cert_data
+
 
 def dump_cert(certificate):
     subject = certificate.get_subject()
