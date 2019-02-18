@@ -69,12 +69,12 @@ def find_end(log_info, end):
         return log_info
     calc_end = (int(end / log_info['block_size'])+1)*log_info['block_size']
     log_info['end'] = min(calc_end, log_info['tree_size'])
-    logging.info("Block aligning end {} to {}".format(end, log_info['end']))
+    logging.info(f"Block aligning end {end} to {log_info['end']}")
     return log_info
 
 
 def setup_file_logger(args):
-    file_handler = logging.FileHandler("{0}/{1}.log".format(args.storage_dir, "run"))
+    file_handler = logging.FileHandler(f"{args.storage_dir}/run.log")
     formatter = logging.Formatter(LOG_FORMAT)
     file_handler.setFormatter(formatter)
     logging.getLogger().addHandler(file_handler)
@@ -86,7 +86,7 @@ def setup_log_data(args, ses, get_block_size=True):
     try:
         log = [x for x in logs if x['url'] == args.ctl_url][0]
     except IndexError:
-        logging.error("Invalid CTL log URL: {}".format(args.ctl_url))
+        logging.error(f"Invalid CTL log URL: {args.ctl_url}")
         if not args.no_check:
             sys.exit(1)
         else:
@@ -245,14 +245,14 @@ def check_log(args):
     if not args.no_check:
         logging.info("{operated_by}/{description}:".format(**log))
     logging.info("tree size: {:,}".format(log['tree_size']-1))
-    ldiff = log['tree_size']-1-(len(nums)-1)
-    logging.info("length: {:,} ({:,}, {:.1%})".format(len(nums)-1, ldiff, ldiff/log['tree_size']-1))
+    len_diff = log['tree_size']-1-(len(nums)-1)
+    logging.info(f"length: {len(nums) - 1:,} ({len_diff:,}, {len_diff / (log['tree_size'] - 1):.1%})")
     ndiff = log['tree_size']-1-nums[-1]
-    logging.info("last num: {:,} ({:,}, {:.1%})".format(nums[-1], ndiff, ndiff/log['tree_size']-1))
-    runlog = os.stat(os.path.join(args.storage_dir, "run.log"))
-    mtime = runlog.st_mtime
+    logging.info(f"last num: {nums[-1]:,} ({ndiff:,}, {ndiff / (log['tree_size'] - 1):.1%})")
+    run_log = os.stat(os.path.join(args.storage_dir, "run.log"))
+    modified_time = run_log.st_mtime
     now = time.time()
-    diff = now-mtime
+    diff = now-modified_time
     m, s = divmod(diff, 60)
     h, m = divmod(m, 60)
     logging.info('Last log update: {:d} hours, {:02d} minutes, {:02d} seconds'.format(int(h), int(m), int(s)))
