@@ -193,7 +193,10 @@ def download_log(args):
             })
 
             certlib.add_all_domains(cert_data)
-            data.append("{};{}".format(entry['cert_index'], ' '.join(cert_data['leaf_cert']['all_domains'])))
+            # Remove newlines from all_domains: https://crt.sh/?id=282646337
+            data.append("{};{}".format(entry['cert_index'],
+                                       ' '.join(cert_data['leaf_cert']['all_domains']
+                                                ).replace("\n", " ").replace("\r", " ").replace("\0", " ")))
 
         logging.info("from: {} to: {}".format(index_min, index_max))
         csv_file = os.path.join(log['storage_dir'], "{0:011d}-{1:011d}.csv.gz".format(index_min, index_max))
