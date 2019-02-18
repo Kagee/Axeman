@@ -14,13 +14,14 @@ import requests
 import queue
 from collections import deque
 
+from construct import Struct, Byte, Int16ub, Int64ub, Enum, Bytes, Int24ub, this, GreedyBytes, GreedyRange, \
+    Terminated, Embedded
+
 CTL_LISTS = 'https://www.gstatic.com/ct/log_list/log_list.json'
 
 CTL_INFO = "https://{}/ct/v1/get-sth"
 
 DOWNLOAD = "https://{}/ct/v1/get-entries?start={}&end={}"
-
-from construct import Struct, Byte, Int16ub, Int64ub, Enum, Bytes, Int24ub, this, GreedyBytes, GreedyRange, Terminated, Embedded
 
 MerkleTreeHeader = Struct(
     "Version"         / Byte,
@@ -67,7 +68,7 @@ def get_max_block_size(log, ses):
         return len(entries['entries'])
 
 
-def retrieve_log_info(log, ses, get_block_size = True):
+def retrieve_log_info(log, ses, get_block_size=True):
     block_size = -1
     if get_block_size:
         print("getting block sixze")
@@ -115,7 +116,7 @@ def populate_work(log):
         assert end >= start, "End {} is less than start {}!".format(end, start)
         assert end < tree_size, "End {} is less than tree_size {}".format(end, tree_size)
 
-        #logging.info("Chunk: {}-{}".format(start, end))
+        # logging.info("Chunk: {}-{}".format(start, end))
         chunk_list.append((start, end))
         start += block_size
 
@@ -130,10 +131,10 @@ def add_all_domains(cert_data):
     if cert_data['leaf_cert']['subject']['CN']:
         all_domains.append(cert_data['leaf_cert']['subject']['CN'])
 
-    SAN = cert_data['leaf_cert']['extensions'].get('subjectAltName')
+    san = cert_data['leaf_cert']['extensions'].get('subjectAltName')
 
-    if SAN:
-        for entry in SAN.split(', '):
+    if san:
+        for entry in san.split(', '):
             if entry.startswith('DNS:'):
                 all_domains.append(entry.replace('DNS:', ''))
 
@@ -144,16 +145,6 @@ def add_all_domains(cert_data):
 
 def dump_cert(certificate):
     subject = certificate.get_subject()
-
-    try:
-        not_before = datetime.datetime.strptime(certificate.get_notBefore().decode('ascii'), "%Y%m%d%H%M%SZ").timestamp()
-    except:
-        not_before = 0
-
-    try:
-        not_after = datetime.datetime.strptime(certificate.get_notAfter().decode('ascii'), "%Y%m%d%H%M%SZ").timestamp()
-    except:
-        not_after = 0
 
     return {
         "subject": {
@@ -166,10 +157,8 @@ def dump_cert(certificate):
             "CN": subject.CN
         },
         "extensions": dump_extensions(certificate),
-        #"not_before": not_before,
-        #"not_after": not_after,
-        #"as_der": base64.b64encode(crypto.dump_certificate(crypto.FILETYPE_ASN1, certificate)).decode('utf-8')
     }
+
 
 def dump_extensions(certificate):
     extensions = {}
