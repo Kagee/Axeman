@@ -9,6 +9,8 @@ import os
 # import hashlib
 import logging
 import locale
+
+import OpenSSL
 import requests
 # import queue
 # from collections import deque
@@ -151,11 +153,20 @@ def download_log(args):
             cert_data = {}
             if mtl.LogEntryType == "X509LogEntryType":
                 cert_data['type'] = "X509LogEntry"
-                # OpenSSL.crypto.Error
-                chain = [crypto.load_certificate(crypto.FILETYPE_ASN1, certlib.Certificate.parse(mtl.Entry).CertData)]
+                try:
+                    chain = [crypto.load_certificate(crypto.FILETYPE_ASN1, certlib.Certificate.parse(mtl.Entry).CertData)]
+                except OpenSSL.crypto.Error:
+                    logging.error(f"Failed to parse {entry['cert_index']}, inserting fake, empty data")
+                    data.append("{};{}".format(entry['cert_index'], ''))
+                    continue
                 extra_data = certlib.CertificateChain.parse(base64.b64decode(entry['extra_data']))
                 for cert in extra_data.Chain:
-                    chain.append(crypto.load_certificate(crypto.FILETYPE_ASN1, cert.CertData))
+                    try:
+                        chain.append(crypto.load_certificate(crypto.FILETYPE_ASN1, cert.CertData))
+                    except OpenSSL.crypto.Error:
+                        logging.error(f"Failed to parse {entry['cert_index']}, inserting fake, empty data")
+                        data.append("{};{}".format(entry['cert_index'], ''))
+                        continue
             else:
                 cert_data['type'] = "PreCertEntry"
                 extra_data = certlib.PreCertEntry.parse(base64.b64decode(entry['extra_data']))
