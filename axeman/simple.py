@@ -114,7 +114,19 @@ def download_log(args):
     with open(os.path.join(log['storage_dir'], "metadata"), 'w') as f:
         json.dump(log, f)
     chunks = certlib.populate_work(log)
+    # prev_chunks = []
+    # prev_chunks.append(time.time())
     while len(chunks) != 0:
+        # prev_chunks.append(time.time())
+        #if len(prev_chunks) > 20:
+        #    timedeltas = [prev_chunks[i-1]-prev_chunks[i] for i in range(len(prev_chunks)-18, len(prev_chunks))]
+        #    average_timedelta = (sum(timedeltas) / len(timedeltas))*-1
+        #    logging.info(f"Average timedelta: {average_timedelta}")
+        #    m, s = divmod(average_timedelta*len(chunks), 60)
+        #    h, m = divmod(m, 60)
+        #    d, h = divmod(m, 24)
+        #    logging.info('Est. remaning time: {:d} days, {:d} hours, {:02d} minutes'.format(int(d), int(h), int(m)))
+
         logging.info("{} chunks remaning".format(len(chunks)))
         chunk = chunks.popleft()
         start = chunk[0]
