@@ -112,6 +112,9 @@ def populate_work(log):
         if end >= tree_size:
             end = tree_size - 1
 
+        if start > log['end']:
+            break
+
         assert end >= start, "End {} is less than start {}!".format(end, start)
         assert end < tree_size, "End {} is less than tree_size {}".format(end, tree_size)
 
