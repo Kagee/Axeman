@@ -40,7 +40,7 @@ def log_pretty_print(log, ses):
     return l
 
 
-def logs_pretty_print():
+def logs_pretty_print(args):
     ses = requests.Session()
     logs = certlib.retrieve_all_ctls(ses)
     ls = []
@@ -48,10 +48,11 @@ def logs_pretty_print():
         ls.append(log_pretty_print(log,ses))
     num_sort = sorted(ls, key=lambda k: k['tree_size'])
     for l in num_sort:
-        print("{tree_size}\t{url}\t{disqualified}\t{_time_get_log_info}".format(**l))
+        folder = "*" if os.path.exists(glue_dir(args.output_dir, l['url'])) else "-"
+        l['folder'] = folder
+        print("{tree_size}\t{folder}\t{url}\t{disqualified}\t{_time_get_log_info}".format(**l))
     
-    
-    
+
 def find_start(log_info, start):
     if start == 0:
         log_info['start'] = 0
@@ -109,12 +110,12 @@ def download_log(args):
     ses = requests.Session()
     setup_file_logger(args)
     l = setup_log_data(args, ses)
-    
+    with open(os.path.join(l['storage_dir'], "metadata"), 'w') as f:
+        json.dump(l, f)
     chunks = certlib.populate_work(l)
     while len(chunks) != 0:
         logging.info("{} chunks remaning".format(len(chunks)))
         chunk = chunks.popleft()
-        #print(chunk)
         start = chunk[0]
         end = chunk[1]
         for x in range(3):
@@ -127,9 +128,10 @@ def download_log(args):
                 logging.error("Exception getting block {}-{}! {}".format(start, end, e))
 
         else:  # Notorious for else, if we didn't encounter a break our request failed 3 times D:
+            logging.error("Failed to get block {}-{}, writing to fail.csv".format(start, end))
             with open(os.path.join(l['storage_dir'], "fail.csv"), 'a') as f:
                 f.write("{}\n".format(
-                       ",".join([log_info['url'], str(start), str(end)])
+                       ",".join([l['url'], str(start), str(end)])
                        )
                 )
             return
@@ -149,6 +151,7 @@ def download_log(args):
             cert_data = {}
             if mtl.LogEntryType == "X509LogEntryType":
                 cert_data['type'] = "X509LogEntry"
+                # OpenSSL.crypto.Error
                 chain = [crypto.load_certificate(crypto.FILETYPE_ASN1, certlib.Certificate.parse(mtl.Entry).CertData)]
                 extra_data = certlib.CertificateChain.parse(base64.b64decode(entry['extra_data']))
                 for cert in extra_data.Chain:
@@ -202,7 +205,9 @@ def check_log(args):
         if idx % 1000 == 0:
             sys.stderr.write(".")
             sys.stderr.flush()
+        csv.field_size_limit(sys.maxsize)
         with gzip.open(gz, mode='rt') as f:
+            
             reader = csv.reader(f, delimiter=';', quoting=csv.QUOTE_NONE)
             for row in reader:
                 nums.append(int(row[0]))
@@ -211,12 +216,22 @@ def check_log(args):
                     empty += 1
     sys.stderr.write("\n")
     nums = sorted(set(nums))
-    logging.info("{operated_by}/{description}:".format( **l))
+    if not args.no_check:
+        logging.info("{operated_by}/{description}:".format( **l))
     logging.info("tree size: {:,}".format(l['tree_size']))
     ldiff = l['tree_size']-(len(nums)-1)
     logging.info("length: {:,} ({:,}, {:.1%})".format(len(nums)-1, ldiff,ldiff/l['tree_size']))
     ndiff = l['tree_size']-nums[-1]
     logging.info("last num: {:,} ({:,}, {:.1%})".format(nums[-1], ndiff,ndiff/l['tree_size']))
+    runlog = os.stat(os.path.join(args.storage_dir, "run.log"))
+    mtime = runlog.st_mtime
+    now = time.time()
+    diff = now-mtime
+    m, s = divmod(diff, 60)
+    h, m = divmod(m, 60)
+    logging.info('Last log update: {:d} hours, {:02d} minutes, {:02d} seconds'.format(int(h), int(m), int(s)))
+    if diff < 120:
+        logging.warning("run.log was last modified less than 120 seconds ago, a job is probably still running")
     logging.info("To continue: python3.6 simple.py -u '{}' -s {}".format(l['url'], min(len(nums)-1, nums[-1])-10 ))
     return 0
 
@@ -229,10 +244,11 @@ def main():
     parser.add_argument('-e', dest="ctl_end", action="store", type=int, default=-1, help="The CTL offset to end at (will be block alligned)")
     parser.add_argument('-o', dest="output_dir", action="store", default="./output", help="The output directory to create log folders in")
     parser.add_argument('-v', dest="verbose", action="store_true", help="Print out verbose/debug info")
+    parser.add_argument('-n', dest="no_check", action="store_true", help="Override URL check")
     args = parser.parse_args()
 
     if args.list_mode:
-        return logs_pretty_print()
+        return logs_pretty_print(args)
 
     logging.basicConfig(format=LOG_FORMAT, level=LOG_LEVEL)
 
