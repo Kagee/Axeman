@@ -79,9 +79,8 @@ def retrieve_log_info(log, ses, get_block_size=True):
             info['block_size'] = block_size
             info.update(log)
             return info
-    except ConnectionResetError:
-        return {"tree_size": -1}
-    except requests.exceptions.ConnectionError:
+    except:
+        # ConnectionResetError / requests.exceptions.ConnectionError / requests.exceptions.ReadTimeout
         return {"tree_size": -1}
 
 
