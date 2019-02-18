@@ -1,43 +1,41 @@
 import argparse
 
 import sys
-#import math
+# import math
 import base64
 import os
-#import traceback
-#import hashlib
+# import traceback
+# import hashlib
 import logging
 import locale
 import requests
-#import queue
-#from collections import deque
+# import queue
+# from collections import deque
 import gzip
 import time
 import glob
 import csv
 import json
-#import datetime
-
-try:
-    locale.setlocale(locale.LC_ALL, 'en_US')
-except:
-    pass
+# import datetime
 
 from OpenSSL import crypto
 
 import certlib
 
+locale.setlocale(locale.LC_ALL, 'en_US')
+
 LOG_FORMAT = '[%(levelname)s:%(name)s:%(funcName)s] %(asctime)s - %(message)s'
 LOG_LEVEL = logging.DEBUG
 
+
 def log_pretty_print(log, ses):
     time1 = time.time()
-    log_info = certlib.retrieve_log_info(log,ses, False)
+    log_info = certlib.retrieve_log_info(log, ses, False)
     time2 = time.time()
     log_info['_time_get_log_info'] = '%0.3f ms' % ((time2-time1)*1000.0)
-    l = {**log, **log_info}
-    #print("{tree_size}\t{url}\t{disqualified}".format(**l))
-    return l
+    combine_log = {**log, **log_info}
+    # print("{tree_size}\t{url}\t{disqualified}".format(**l))
+    return combine_log
 
 
 def logs_pretty_print(args):
@@ -45,7 +43,7 @@ def logs_pretty_print(args):
     logs = certlib.retrieve_all_ctls(ses)
     ls = []
     for log in logs:
-        ls.append(log_pretty_print(log,ses))
+        ls.append(log_pretty_print(log, ses))
     num_sort = sorted(ls, key=lambda k: k['tree_size'])
     for l in num_sort:
         folder = "*" if os.path.exists(glue_dir(args.output_dir, l['url'])) else "-"
@@ -80,21 +78,22 @@ def setup_file_logger(args):
     logging.getLogger().addHandler(file_handler)
 
 
-def setup_log_data(args, ses, get_block_size = True):
+def setup_log_data(args, ses, get_block_size=True):
     logs = certlib.retrieve_all_ctls(ses)
+    log = {}
     try:
-        log = [ x for x in logs if x['url'] == args.ctl_url ][0]
+        log = [x for x in logs if x['url'] == args.ctl_url][0]
     except IndexError:
         logging.error("Invalid CTL log URL: {}".format(args.ctl_url))
         if not args.no_check:
             sys.exit(1)
         else:
             log['url'] = args.ctl_url
-            log[''] = args.ctl_url
+            # operator? other?
     
     log['storage_dir'] = args.storage_dir
     
-    combined_logs = {**log, **certlib.retrieve_log_info(log,ses,get_block_size)}
+    combined_logs = {**log, **certlib.retrieve_log_info(log, ses, get_block_size)}
     
     combined_logs = find_start(combined_logs, args.ctl_start)
     combined_logs = find_end(combined_logs, args.ctl_end)
@@ -103,16 +102,16 @@ def setup_log_data(args, ses, get_block_size = True):
 
 def download_log(args):
     if not os.path.exists(args.storage_dir):
-       os.makedirs(args.storage_dir)
+        os.makedirs(args.storage_dir)
     elif args.ctl_start == 0:
         logging.error("Storage directory exists, -s should be > 0")
         sys.exit(1)
     ses = requests.Session()
     setup_file_logger(args)
-    l = setup_log_data(args, ses)
-    with open(os.path.join(l['storage_dir'], "metadata"), 'w') as f:
-        json.dump(l, f)
-    chunks = certlib.populate_work(l)
+    log = setup_log_data(args, ses)
+    with open(os.path.join(log['storage_dir'], "metadata"), 'w') as f:
+        json.dump(log, f)
+    chunks = certlib.populate_work(log)
     while len(chunks) != 0:
         logging.info("{} chunks remaning".format(len(chunks)))
         chunk = chunks.popleft()
@@ -120,7 +119,7 @@ def download_log(args):
         end = chunk[1]
         for x in range(3):
             try:
-                with ses.get(certlib.DOWNLOAD.format(l['url'], start, end)) as response:
+                with ses.get(certlib.DOWNLOAD.format(log['url'], start, end)) as response:
                     entry_list = response.json()
                     logging.debug("Retrieved blocks {}-{}...".format(start, end))
                     break
@@ -129,9 +128,9 @@ def download_log(args):
 
         else:  # Notorious for else, if we didn't encounter a break our request failed 3 times D:
             logging.error("Failed to get block {}-{}, writing to fail.csv".format(start, end))
-            with open(os.path.join(l['storage_dir'], "fail.csv"), 'a') as f:
+            with open(os.path.join(log['storage_dir'], "fail.csv"), 'a') as f:
                 f.write("{}\n".format(
-                       ",".join([l['url'], str(start), str(end)])
+                       ",".join([log['url'], str(start), str(end)])
                        )
                 )
             return
@@ -173,21 +172,22 @@ def download_log(args):
             certlib.add_all_domains(cert_data)
             data.append("{};{}".format(entry['cert_index'], ' '.join(cert_data['leaf_cert']['all_domains'])))
 
-        logging.info("from: {} to: {}".format(index_min,index_max))
-        csv_file = os.path.join(l['storage_dir'], "{0:011d}-{1:011d}.csv.gz".format(index_min, index_max))
-        csv_tmp_file = os.path.join(l['storage_dir'], "{0:011d}-{1:011d}.csv.gz.tmp".format(index_min, index_max))
+        logging.info("from: {} to: {}".format(index_min, index_max))
+        csv_file = os.path.join(log['storage_dir'], "{0:011d}-{1:011d}.csv.gz".format(index_min, index_max))
+        csv_tmp_file = os.path.join(log['storage_dir'], "{0:011d}-{1:011d}.csv.gz.tmp".format(index_min, index_max))
         logging.info(csv_file)
 
         with gzip.open(csv_tmp_file, 'wb') as f:
             f.write("\n".join(data).encode("utf-8"))
         os.rename(csv_tmp_file, csv_file)
-    
+
+
 def glue_dir(path, url):
     return os.path.join(path, 
-        "".join(
-            [c for c in url.replace("/",".") if c.isalpha() or c.isdigit() or c=='.']
-            ).rstrip()
-            )
+                        "".join(
+                                [c for c in url.replace("/", ".") if c.isalpha() or c.isdigit() or c == '.']
+                                ).rstrip()
+                        )
 
 
 def check_log(args):
@@ -196,11 +196,11 @@ def check_log(args):
         return 1
     logging.info("Storage dir exists: {}".format(args.storage_dir))
     datafiles = glob.glob(os.path.join(args.storage_dir, '*.csv.gz'))
-    l = setup_log_data(args, requests.Session(), False)
+    log = setup_log_data(args, requests.Session(), False)
     nums = []
     empty = 0
     logging.info("Looping through {} datafiles:".format(len(datafiles)))
-    #for gz in datafiles:
+    # for gz in datafiles:
     for idx, gz in enumerate(datafiles):
         if idx % 1000 == 0:
             sys.stderr.write(".")
@@ -212,17 +212,17 @@ def check_log(args):
             for row in reader:
                 nums.append(int(row[0]))
                 if row[1].strip() == "":
-                    #logging.error("index {} was empty!".format(row[0]))
+                    # logging.error("index {} was empty!".format(row[0]))
                     empty += 1
     sys.stderr.write("\n")
     nums = sorted(set(nums))
     if not args.no_check:
-        logging.info("{operated_by}/{description}:".format( **l))
-    logging.info("tree size: {:,}".format(l['tree_size']))
-    ldiff = l['tree_size']-(len(nums)-1)
-    logging.info("length: {:,} ({:,}, {:.1%})".format(len(nums)-1, ldiff,ldiff/l['tree_size']))
-    ndiff = l['tree_size']-nums[-1]
-    logging.info("last num: {:,} ({:,}, {:.1%})".format(nums[-1], ndiff,ndiff/l['tree_size']))
+        logging.info("{operated_by}/{description}:".format(**log))
+    logging.info("tree size: {:,}".format(log['tree_size']))
+    ldiff = log['tree_size']-(len(nums)-1)
+    logging.info("length: {:,} ({:,}, {:.1%})".format(len(nums)-1, ldiff, ldiff/log['tree_size']))
+    ndiff = log['tree_size']-nums[-1]
+    logging.info("last num: {:,} ({:,}, {:.1%})".format(nums[-1], ndiff, ndiff/log['tree_size']))
     runlog = os.stat(os.path.join(args.storage_dir, "run.log"))
     mtime = runlog.st_mtime
     now = time.time()
@@ -232,17 +232,21 @@ def check_log(args):
     logging.info('Last log update: {:d} hours, {:02d} minutes, {:02d} seconds'.format(int(h), int(m), int(s)))
     if diff < 120:
         logging.warning("run.log was last modified less than 120 seconds ago, a job is probably still running")
-    logging.info("To continue: python3.6 simple.py -u '{}' -s {}".format(l['url'], min(len(nums)-1, nums[-1])-10 ))
+    logging.info("To continue: python3.6 simple.py -u '{}' -s {}".format(log['url'], min(len(nums)-1, nums[-1])-10))
     return 0
+
 
 def main():
     parser = argparse.ArgumentParser(description='Pull down certificate transparency list information')
     parser.add_argument('-l', dest="list_mode", action="store_true", help="List all available certificate lists")
     parser.add_argument('-c', dest="check_mode", action="store_true", help="Check the status of a log")
     parser.add_argument('-u', dest="ctl_url", action="store", default="", help="CTL url to download")
-    parser.add_argument('-s', dest="ctl_start", action="store", type=int, default=0, help="The CTL offset to start at (will be block alligned)")
-    parser.add_argument('-e', dest="ctl_end", action="store", type=int, default=-1, help="The CTL offset to end at (will be block alligned)")
-    parser.add_argument('-o', dest="output_dir", action="store", default="./output", help="The output directory to create log folders in")
+    parser.add_argument('-s', dest="ctl_start", action="store", type=int, default=0,
+                        help="The CTL offset to start at (will be block aligned)")
+    parser.add_argument('-e', dest="ctl_end", action="store", type=int, default=-1,
+                        help="The CTL offset to end at (will be block aligned)")
+    parser.add_argument('-o', dest="output_dir", action="store", default="./output",
+                        help="The output directory to create log folders in")
     parser.add_argument('-v', dest="verbose", action="store_true", help="Print out verbose/debug info")
     parser.add_argument('-n', dest="no_check", action="store_true", help="Override URL check")
     args = parser.parse_args()
@@ -252,7 +256,6 @@ def main():
 
     logging.basicConfig(format=LOG_FORMAT, level=LOG_LEVEL)
 
-    
     args.storage_dir = glue_dir(args.output_dir, args.ctl_url)
     
     if args.check_mode:
