@@ -244,11 +244,11 @@ def check_log(args):
     nums = sorted(set(nums))
     if not args.no_check:
         logging.info("{operated_by}/{description}:".format(**log))
-    logging.info("tree size: {:,}".format(log['tree_size']))
-    ldiff = log['tree_size']-(len(nums)-1)
-    logging.info("length: {:,} ({:,}, {:.1%})".format(len(nums)-1, ldiff, ldiff/log['tree_size']))
-    ndiff = log['tree_size']-nums[-1]
-    logging.info("last num: {:,} ({:,}, {:.1%})".format(nums[-1], ndiff, ndiff/log['tree_size']))
+    logging.info("tree size: {:,}".format(log['tree_size']-1))
+    ldiff = log['tree_size']-1-(len(nums)-1)
+    logging.info("length: {:,} ({:,}, {:.1%})".format(len(nums)-1, ldiff, ldiff/log['tree_size']-1))
+    ndiff = log['tree_size']-1-nums[-1]
+    logging.info("last num: {:,} ({:,}, {:.1%})".format(nums[-1], ndiff, ndiff/log['tree_size']-1))
     runlog = os.stat(os.path.join(args.storage_dir, "run.log"))
     mtime = runlog.st_mtime
     now = time.time()
