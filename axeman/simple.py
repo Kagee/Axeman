@@ -232,12 +232,14 @@ def check_log(args):
             sys.stderr.flush()
         csv.field_size_limit(sys.maxsize)
         with gzip.open(gz, mode='rt') as f:
-            reader = csv.reader(f, delimiter=';', quoting=csv.QUOTE_NONE)
-            for row in reader:
-                nums.append(int(row[0]))
-                if row[1].strip() == "":
-                    # logging.error("index {} was empty!".format(row[0]))
+            # csv reader fails on \0 (why is there NUL in my data?) so we use for line in f.
+            for line in f:
+                line = line.split(";")
+                nums.append(int(line[0]))
+                if line[1].strip() == "":
+                    # logging.error("index {} was empty!".format(line[0]))
                     empty += 1
+
     sys.stderr.write("\n")
     nums = sorted(set(nums))
     if not args.no_check:
