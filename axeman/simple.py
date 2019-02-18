@@ -25,7 +25,7 @@ from OpenSSL import crypto
 
 import certlib
 
-locale.setlocale(locale.LC_ALL, 'en_US')
+locale.setlocale(locale.LC_ALL, 'en_US.UTF8')
 
 LOG_FORMAT = '[%(levelname)s:%(name)s:%(funcName)s] %(asctime)s - %(message)s'
 LOG_LEVEL = logging.DEBUG
@@ -37,7 +37,6 @@ def log_pretty_print(log, ses):
     time2 = time.time()
     log_info['_time_get_log_info'] = '%0.3f ms' % ((time2-time1)*1000.0)
     combine_log = {**log, **log_info}
-    # print("{tree_size}\t{url}\t{disqualified}".format(**l))
     return combine_log
 
 
@@ -219,7 +218,6 @@ def check_log(args):
             sys.stderr.flush()
         csv.field_size_limit(sys.maxsize)
         with gzip.open(gz, mode='rt') as f:
-            
             reader = csv.reader(f, delimiter=';', quoting=csv.QUOTE_NONE)
             for row in reader:
                 nums.append(int(row[0]))
@@ -244,7 +242,7 @@ def check_log(args):
     logging.info('Last log update: {:d} hours, {:02d} minutes, {:02d} seconds'.format(int(h), int(m), int(s)))
     if diff < 120:
         logging.warning("run.log was last modified less than 120 seconds ago, a job is probably still running")
-    logging.info("To continue: python3.6 simple.py -u '{}' -s {}".format(log['url'], min(len(nums)-1, nums[-1])-10))
+    logging.info("To continue: ./simple.py -u '{}' -s {}".format(log['url'], min(len(nums)-1, nums[-1])-10))
     return 0
 
 
