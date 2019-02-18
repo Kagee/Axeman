@@ -202,8 +202,22 @@ def glue_dir(path, url):
 
 
 def check_log(args):
+    if os.path.exists(args.check_mode):
+        logging.info("Input is a folder, looking for metadata...")
+        meta_file = os.path.join(args.check_mode, "metadata")
+        if os.path.exists(meta_file):
+            with open(meta_file) as json_file:
+                metadata = json.load(json_file)
+                args.ctl_url = metadata['url']
+                args.storage_dir = args.check_mode
+        else:
+            logging.error(f"Failed to find metadata in {args.check_mode}")
+            sys.exit(1)
+    else:
+        args.ctl_url = args.check_mode
     logging.info("Checking log at URL {}".format(args.ctl_url))
-    if not os.path.exists(args.storage_dir):
+    if not os.path.exists(args.storage_dir) or os.path.samefile(args.storage_dir, args.output_dir):
+        logging.error("Storage dir did not exists or was same as base output dir: {}".format(args.storage_dir))
         return 1
     logging.info("Storage dir exists: {}".format(args.storage_dir))
     datafiles = glob.glob(os.path.join(args.storage_dir, '*.csv.gz'))
@@ -249,7 +263,8 @@ def check_log(args):
 def main():
     parser = argparse.ArgumentParser(description='Pull down certificate transparency list information')
     parser.add_argument('-l', dest="list_mode", action="store_true", help="List all available certificate lists")
-    parser.add_argument('-c', dest="check_mode", action="store_true", help="Check the status of a log")
+    parser.add_argument('-c', dest="check_mode", action="store", default=None,
+                        help="Check the status of a log (bare url or folder)")
     parser.add_argument('-u', dest="ctl_url", action="store", default="", help="CTL url to download")
     parser.add_argument('-s', dest="ctl_start", action="store", type=int, default=0,
                         help="The CTL offset to start at (will be block aligned)")
@@ -266,9 +281,8 @@ def main():
 
     logging.basicConfig(format=LOG_FORMAT, level=LOG_LEVEL)
 
-    args.storage_dir = glue_dir(args.output_dir, args.ctl_url)
-    
     if args.check_mode:
+        args.storage_dir = glue_dir(args.output_dir, args.check_mode)
         return check_log(args)
 
     if args.ctl_url == "":
@@ -276,6 +290,7 @@ def main():
         sys.exit(1)
     
     logging.info("Starting...")
+    args.storage_dir = glue_dir(args.output_dir, args.ctl_url)
     return download_log(args)
 
 
