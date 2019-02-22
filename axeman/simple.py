@@ -109,6 +109,7 @@ def download_log(args):
         logging.error("Storage directory exists, -s should be > 0")
         sys.exit(1)
     ses = requests.Session()
+    ses.headers.update({'User-Agent': requests.utils.default_user_agent() + "/hildenae+ct@gmail.com"})
     setup_file_logger(args)
     log = setup_log_data(args, ses)
     with open(os.path.join(log['storage_dir'], "metadata"), 'w') as f:
