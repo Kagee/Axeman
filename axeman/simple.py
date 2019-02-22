@@ -236,41 +236,51 @@ def check_log(args):
         logging.error("Storage dir did not exists or was same as base output dir: {}".format(args.storage_dir))
         return 1
     logging.info("Storage dir exists: {}".format(args.storage_dir))
-    datafiles = glob.glob(os.path.join(args.storage_dir, '*.csv.gz'))
+    datafiles = sorted(glob.glob(os.path.join(args.storage_dir, '*.csv.gz')))
     log = setup_log_data(args, requests.Session(), False)
-    nums = []
     empty = 0
     logging.info("Looping through {} datafiles:".format(len(datafiles)))
-    percent20 = int(len(datafiles) / 20)
+    percent20 = max(int(len(datafiles) / 20), 1)
     at_percent = 0
+    index = 0
     for idx, gz in enumerate(datafiles):
+    #for gz in datafiles:
         if idx % percent20 == 0:
             sys.stderr.write(f"{at_percent}% ")
             at_percent += 5
             sys.stderr.flush()
-        with gzip.open(gz, mode='rt') as f:
+        #with gzip.open(gz, mode='rt') as f:
+        try:
+            #logging.info(gz)
+            f = gzip.open(gz, mode='rt')
             # csv reader fails on \0 (why is there NUL in my data?) so we use for line in f.
             # if we choose to go back to csv we also need csv.field_size_limit(sys.maxsize) because
             # of https://crt.sh/?id=10751627
             for line in f:
-                line = line.split(";")
-                try:
-                    nums.append(int(line[0]))
-                except ValueError:
-                    logging.error(f"Failed to add int:{line[0]} in {gz}")
-                if line[1].strip() == "":
+                l = line.split(";")
+                #try:
+                if index > int(l[0]):
+                    continue
+                elif index != int(l[0]):
+                    logging.error(f"index: {index}; l[0]: {int(l[0])}; chunk: {idx}")
+                    logging.error(gz)
+                    sys.exit(0)
+                index += 1
+                if l[1].strip() == "":
                     # logging.error("index {} was empty!".format(line[0]))
                     empty += 1
-
+            f.close()
+            line = None
+            l = None
+            f = None
+        except Exception as e:
+            throw(e)
     sys.stderr.write("\n")
-    nums = sorted(set(nums))
     if not args.no_check:
         logging.info("{operated_by}/{description}:".format(**log))
     logging.info("tree size: {:,}".format(log['tree_size']-1))
-    len_diff = log['tree_size']-1-(len(nums)-1)
-    logging.info(f"length: {len(nums) - 1:,} ({len_diff:,}, {len_diff / (log['tree_size'] - 1):.1%})")
-    ndiff = log['tree_size']-1-nums[-1]
-    logging.info(f"last num: {nums[-1]:,} ({ndiff:,}, {ndiff / (log['tree_size'] - 1):.1%})")
+    len_diff = log['tree_size']-1-(index-1)
+    logging.info(f"length: {index - 1:,} ({len_diff:,}, {len_diff / (log['tree_size'] - 1):.1%})")
     run_log = os.stat(os.path.join(args.storage_dir, "run.log"))
     modified_time = run_log.st_mtime
     now = time.time()
@@ -280,7 +290,7 @@ def check_log(args):
     logging.info('Last log update: {:d} hours, {:02d} minutes, {:02d} seconds'.format(int(h), int(m), int(s)))
     if diff < 120:
         logging.warning("run.log was last modified less than 120 seconds ago, a job is probably still running")
-    logging.info("To continue: ./simple.py -u '{}' -s {}".format(log['url'], min(len(nums)-1, nums[-1])-10))
+    logging.info("To continue: ./simple.py -u '{}' -s {}".format(log['url'], index-10))
     return 0
 
 
