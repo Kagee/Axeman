@@ -280,7 +280,7 @@ def check_log(args):
         logging.info("{operated_by}/{description}:".format(**log))
     logging.info("tree size: {:,}".format(log['tree_size']-1))
     len_diff = log['tree_size']-1-(index-1)
-    logging.info(f"length: {index - 1:,} ({len_diff:,}, {len_diff / (log['tree_size'] - 1):.1%})")
+    logging.info(f"length: {index - 1:,} ({len_diff:,}, {len_diff / (log['tree_size'] - 1):.1%}), empty: {empty}")
     run_log = os.stat(os.path.join(args.storage_dir, "run.log"))
     modified_time = run_log.st_mtime
     now = time.time()
