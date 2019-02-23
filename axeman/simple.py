@@ -109,6 +109,7 @@ def download_log(args):
         logging.error("Storage directory exists, -s should be > 0")
         sys.exit(1)
     ses = requests.Session()
+    ses.verify = not args.no_verify
     ses.headers.update({'User-Agent': requests.utils.default_user_agent() + "/hildenae+ct@gmail.com"})
     setup_file_logger(args)
     log = setup_log_data(args, ses)
@@ -134,7 +135,7 @@ def download_log(args):
         end = chunk[1]
         for x in range(3):
             try:
-                with ses.get(certlib.DOWNLOAD.format(log['url'], start, end)) as response:
+                with ses.get(certlib.DOWNLOAD.format(log['url'], start, end), verify=args.no_verify) as response:
                     entry_list = response.json()
                     logging.debug("Retrieved blocks {}-{}...".format(start, end))
                     break
@@ -237,7 +238,9 @@ def check_log(args):
         return 1
     logging.info("Storage dir exists: {}".format(args.storage_dir))
     datafiles = sorted(glob.glob(os.path.join(args.storage_dir, '*.csv.gz')))
-    log = setup_log_data(args, requests.Session(), False)
+    ses = requests.Session()
+    ses.verify = False
+    log = setup_log_data(args, ses, False)
     empty = 0
     logging.info("Looping through {} datafiles:".format(len(datafiles)))
     percent20 = max(int(len(datafiles) / 20), 1)
@@ -307,6 +310,7 @@ def main():
     parser.add_argument('-o', dest="output_dir", action="store", default="./output",
                         help="The output directory to create log folders in")
     parser.add_argument('-v', dest="verbose", action="store_true", help="Print out verbose/debug info")
+    parser.add_argument('-x', dest="no_verify", action="store_true", help="Do not verify TLS certificates")
     parser.add_argument('-n', dest="no_check", action="store_true", help="Override URL check")
     args = parser.parse_args()
 
