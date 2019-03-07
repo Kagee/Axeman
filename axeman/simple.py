@@ -133,6 +133,9 @@ def download_log(args):
         chunk = chunks.popleft()
         start = chunk[0]
         end = chunk[1]
+        if args.slp_time != 0:
+            time.sleep(args.slp_time)
+
         for x in range(3):
             try:
                 with ses.get(certlib.DOWNLOAD.format(log['url'], start, end), verify=args.no_verify) as response:
@@ -267,6 +270,7 @@ def check_log(args):
                 elif index != int(l[0]):
                     logging.error(f"index: {index}; l[0]: {int(l[0])}; chunk: {idx}")
                     logging.error(gz)
+                    logging.info("Suggestion: ./simple.py -u '{}' -s {} -e {}".format(log['url'], index-10, int(l[0])+10))
                     sys.exit(0)
                 index += 1
                 if l[1].strip() == "":
@@ -309,6 +313,8 @@ def main():
                         help="The CTL offset to end at (will be block aligned)")
     parser.add_argument('-o', dest="output_dir", action="store", default="./output",
                         help="The output directory to create log folders in")
+    parser.add_argument('-t', dest="slp_time", action="store", type=int, default=0,
+                                    help="Time (seconds) to wait between requests")
     parser.add_argument('-v', dest="verbose", action="store_true", help="Print out verbose/debug info")
     parser.add_argument('-x', dest="no_verify", action="store_true", help="Do not verify TLS certificates")
     parser.add_argument('-n', dest="no_check", action="store_true", help="Override URL check")
