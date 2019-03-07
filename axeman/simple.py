@@ -153,9 +153,12 @@ def download_log(args):
                        )
                 )
             return
-
-        for index, entry in zip(range(start, end + 1), entry_list['entries']):
-            entry['cert_index'] = index
+        try:
+            for index, entry in zip(range(start, end + 1), entry_list['entries']):
+                entry['cert_index'] = index
+        except KeyError as k:
+            logging.error(k)
+            logging.error(entry_list)
 
         index_min = entry_list['entries'][0]['cert_index']
         index_max = -1
