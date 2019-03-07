@@ -220,6 +220,45 @@ def glue_dir(path, url):
                                 ).rstrip()
                         )
 
+def all_log_status(args):
+    logging.getLogger().setLevel(logging.INFO)
+    logging.debug(f"Looking for logs in {args.output_dir}")
+    metafiles = sorted(glob.glob(os.path.join(args.output_dir, '*','metadata')))
+    #print(metafiles)
+    for metafile in metafiles:
+        with open(metafile) as json_file:
+            l = json.load(json_file)
+            d = os.path.dirname(metafile)
+            on_disk_chunks = len(glob.glob(os.path.join(d, '*.csv.gz')))
+            calculated_chunks = int(l['tree_size']/l['block_size'])
+            percent_chunks = on_disk_chunks/calculated_chunks
+            ses = requests.Session()
+            ses.verify = False
+
+            # Silence some stuff
+            logging.getLogger().setLevel(logging.INFO)
+            from requests.packages.urllib3.exceptions import InsecureRequestWarning
+            requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+
+            # update log tree size, but assume block size does not change
+            block_size = l['block_size']
+            url = l['url']
+            l = certlib.retrieve_log_info(l, ses, get_block_size=False)
+            l['block_size'] = block_size
+            l['url'] = url
+
+            calculated_chunks2 = max(int(l['tree_size']/l['block_size']), 1)
+            percent_chunks2 = on_disk_chunks/calculated_chunks2
+            calulated_missing_crts = max(0, (calculated_chunks2 - on_disk_chunks)) * l['block_size']
+
+            run_log = os.stat(os.path.join(d, "run.log"))
+            modified_time = run_log.st_mtime
+            now = time.time()
+            diff = int(now-modified_time)
+
+            jimi = "J" if os.path.exists(os.path.join(d, "JIMI")) else " "
+            print(f"{calulated_missing_crts}\t{diff}\t{percent_chunks2:.1%}\t{l['url']} ({jimi})")
+
 
 def check_log(args):
     if os.path.exists(args.check_mode):
@@ -318,12 +357,16 @@ def main():
     parser.add_argument('-v', dest="verbose", action="store_true", help="Print out verbose/debug info")
     parser.add_argument('-x', dest="no_verify", action="store_true", help="Do not verify TLS certificates")
     parser.add_argument('-n', dest="no_check", action="store_true", help="Override URL check")
+    parser.add_argument('-a', dest="c_all_status", action="store_true", help="")
     args = parser.parse_args()
 
     if args.list_mode:
         return logs_pretty_print(args)
 
     logging.basicConfig(format=LOG_FORMAT, level=LOG_LEVEL)
+
+    if args.c_all_status:
+        return all_log_status(args)
 
     if args.check_mode:
         args.storage_dir = glue_dir(args.output_dir, args.check_mode)
