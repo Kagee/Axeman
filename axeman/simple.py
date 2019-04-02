@@ -138,7 +138,7 @@ def download_log(args):
 
         for x in range(3):
             try:
-                with ses.get(certlib.DOWNLOAD.format(log['url'], start, end), verify=args.no_verify) as response:
+                with ses.get(certlib.DOWNLOAD.format(log['url'], start, end), verify=args.no_verify, timeout=10) as response:
                     entry_list = response.json()
                     logging.debug("Retrieved blocks {}-{}...".format(start, end))
                     break
