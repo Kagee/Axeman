@@ -77,8 +77,9 @@ def retrieve_log_info(log, ses, get_block_size=True):
         with ses.get(CTL_INFO.format(log['url']), timeout=10) as response:
             info = response.json()
             info['block_size'] = block_size
-            info.update(log)
-            return info
+            #info.update(log)
+            log.update(info)
+            return log
     except:
         # ConnectionResetError / requests.exceptions.ConnectionError / requests.exceptions.ReadTimeout
         return {"tree_size": -1}
