@@ -12,6 +12,7 @@ import locale
 
 import OpenSSL
 import requests
+from requests_toolbelt.adapters.source import SourceAddressAdapter
 # import queue
 # from collections import deque
 import gzip
@@ -20,7 +21,7 @@ import glob
 import csv
 import json
 # import datetime
-
+import netifaces
 from OpenSSL import crypto
 
 import certlib
@@ -51,7 +52,7 @@ def logs_pretty_print(args):
         folder = "*" if os.path.exists(glue_dir(args.output_dir, l['url'])) else "-"
         l['folder'] = folder
         print("{tree_size}\t{folder}\t{url}\t{disqualified}\t{_time_get_log_info}".format(**l))
-    
+
 
 def find_start(log_info, start):
     if start == 0:
@@ -92,11 +93,11 @@ def setup_log_data(args, ses, get_block_size=True):
         else:
             log['url'] = args.ctl_url
             # operator? other?
-    
+
     log['storage_dir'] = args.storage_dir
-    
+
     combined_logs = {**log, **certlib.retrieve_log_info(log, ses, get_block_size)}
-    
+
     combined_logs = find_start(combined_logs, args.ctl_start)
     combined_logs = find_end(combined_logs, args.ctl_end)
     return combined_logs
@@ -109,26 +110,29 @@ def download_log(args):
         logging.error("Storage directory exists, -s should be > 0")
         sys.exit(1)
     ses = requests.Session()
+    if args.sip:
+        saa = None
+        for iface in netifaces.interfaces():
+            for ip in netifaces.ifaddresses(iface)[netifaces.AF_INET]:
+                if ip['addr'] == args.sip:
+                    logging.info(f"Setting source IP to {args.sip}")
+                    saa = SourceAddressAdapter(args.sip)
+        if saa:
+            ses.mount('http://', saa)
+            ses.mount('https://', saa)
+        else:
+            logging.fatal(f"{args.sip} is not a valid source address")
+            sys.exit(1)
+
+    if not args.gua:
+        ses.headers.update({'User-Agent': requests.utils.default_user_agent() + "/hildenae+ct@gmail.com"})
     ses.verify = not args.no_verify
-    ses.headers.update({'User-Agent': requests.utils.default_user_agent() + "/hildenae+ct@gmail.com"})
     setup_file_logger(args)
     log = setup_log_data(args, ses)
     with open(os.path.join(log['storage_dir'], "metadata"), 'w') as f:
         json.dump(log, f)
     chunks = certlib.populate_work(log)
-    # prev_chunks = []
-    # prev_chunks.append(time.time())
     while len(chunks) != 0:
-        # prev_chunks.append(time.time())
-        #if len(prev_chunks) > 20:
-        #    timedeltas = [prev_chunks[i-1]-prev_chunks[i] for i in range(len(prev_chunks)-18, len(prev_chunks))]
-        #    average_timedelta = (sum(timedeltas) / len(timedeltas))*-1
-        #    logging.info(f"Average timedelta: {average_timedelta}")
-        #    m, s = divmod(average_timedelta*len(chunks), 60)
-        #    h, m = divmod(m, 60)
-        #    d, h = divmod(m, 24)
-        #    logging.info('Est. remaning time: {:d} days, {:d} hours, {:02d} minutes'.format(int(d), int(h), int(m)))
-
         logging.info("{} chunks remaning".format(len(chunks)))
         chunk = chunks.popleft()
         start = chunk[0]
@@ -360,7 +364,9 @@ def main():
     parser.add_argument('-v', dest="verbose", action="store_true", help="Print out verbose/debug info")
     parser.add_argument('-x', dest="no_verify", action="store_true", help="Do not verify TLS certificates")
     parser.add_argument('-n', dest="no_check", action="store_true", help="Override URL check")
-    parser.add_argument('-a', dest="c_all_status", action="store_true", help="")
+    parser.add_argument('-i', dest="sip", action="store", default=None, type=str, help="Source IP to use for requests")
+    parser.add_argument('-g', dest="gua", action="store_true", help="Use generic user-agent")
+    parser.add_argument('-a', dest="c_all_status", action="store_true", help="List estamated completion stats for all logs we find metadata files for")
     args = parser.parse_args()
 
     if args.list_mode:
