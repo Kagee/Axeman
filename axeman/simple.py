@@ -227,6 +227,99 @@ def glue_dir(path, url):
                                 ).rstrip()
                         )
 
+def all_log_status2(args):
+    logging.getLogger().setLevel(logging.INFO)
+    logging.debug(f"Looking for logs in {args.output_dir}")
+    metafiles = sorted(glob.glob(os.path.join(args.output_dir, '*','metadata')))
+    #print(metafiles)
+    import datetime
+    for metafile in metafiles:
+        with open(metafile) as json_file:
+            meta = json.load(json_file)
+            if "." in metafile:
+                a = datetime.datetime.now().replace(microsecond=0)
+                d = os.path.dirname(metafile)
+                chunks = sorted(glob.glob(os.path.join(d, '*.csv.gz')))
+                expect = 0
+                #print(meta)
+                missing = False
+                sys.stdout.write(f"{meta['url']} size:{meta['tree_size']:,}")
+                for chunk in chunks:
+                    t = os.path.basename(chunk)
+                    if not t.endswith(".csv.gz"):
+                        print(t)
+                        sys.exit(1)
+                    t = t[:-7]
+                    (f, l) = t.split("-")
+                    (f, l) = (int(f), int(l))
+                    if f < expect:
+                        f = expect
+                    if f != expect:
+                        #print(f"expected {expect}, got {f}")
+                        sys.stdout.write(f" missing:{expect}-{f-1}")
+                        missing = True
+                    #print(chunk, f, l)
+                    expect = l + 1
+                if expect < meta['tree_size']:
+                    sys.stdout.write(f" missing (end):{expect}-{meta['tree_size']} ({int(meta['tree_size'])-expect:,})")
+                    missing = True
+                if not missing:
+                    sys.stdout.write(" OK")
+                b = datetime.datetime.now().replace(microsecond=0)
+                print(f" ({b-a})")
+
+
+def all_log_status_memerror(args):
+    logging.getLogger().setLevel(logging.INFO)
+    logging.debug(f"Looking for logs in {args.output_dir}")
+    metafiles = sorted(glob.glob(os.path.join(args.output_dir, '*','metadata')))
+    #print(metafiles)
+    for metafile in metafiles:
+        with open(metafile) as json_file:
+            meta = json.load(json_file)
+            if True:
+                d = os.path.dirname(metafile)
+                chunks = glob.glob(os.path.join(d, '*.csv.gz'))
+                end = 0
+                nums = []
+                for chunk in chunks:
+                    t = os.path.basename(chunk)
+                    if not t.endswith(".csv.gz"):
+                        print(t)
+                        sys.exit(1)
+                    t = t[:-7]
+                    (f, l) = t.split("-")
+                    (f, l) = (int(f), int(l))
+                    for i in range(f, l+1):
+                        nums.append(i)
+                nums = sorted(set(nums))
+                diff = int(meta["tree_size"]) - len(nums)
+                if diff == 0:
+                    print(f"{metafile} OK {meta['tree_size']}/{len(nums)}")
+                elif diff < 0:
+                    print(f"{metafile} WRONG, more found ({len(nums)}) than "\
+                            f"tree_size ({meta['tree_size']}) diff:{diff}")
+                else:
+                    original_list = [x for x in range(nums[0], nums[-1] + 1)]
+                    nums = set(nums)
+                    missing = list(nums ^ set(original_list))
+                    miss_len = len(missing)
+                    sys.stdout.write(f"{metafile} diff:{diff} missing inside: ")
+                    prev = -1
+                    for x in missing:
+                        if prev == -1:
+                            prev = x
+                            sys.stdout.write(f"{prev} - ")
+                            continue
+                        if prev != x-1:
+                            sys.stdout.write(f"{prev}, {x} - ")
+                        prev = x
+                    sys.stdout.write(str(prev))
+                    if diff != miss_len:
+                        sys.stdout.write(f" missing at end: {original_list[-1]} - {meta['tree_size']}")
+                    print("")
+
+
 def all_log_status(args):
     logging.getLogger().setLevel(logging.INFO)
     logging.debug(f"Looking for logs in {args.output_dir}")
@@ -367,6 +460,7 @@ def main():
     parser.add_argument('-i', dest="sip", action="store", default=None, type=str, help="Source IP to use for requests")
     parser.add_argument('-g', dest="gua", action="store_true", help="Use generic user-agent")
     parser.add_argument('-a', dest="c_all_status", action="store_true", help="List estamated completion stats for all logs we find metadata files for")
+    parser.add_argument('-b', dest="c_bll_status", action="store_true", help="List completion based on filenames for all logs with metadata")
     args = parser.parse_args()
 
     if args.list_mode:
@@ -377,6 +471,9 @@ def main():
     if args.c_all_status:
         return all_log_status(args)
 
+    if args.c_bll_status:
+        return all_log_status2(args)
+
     if args.check_mode:
         args.storage_dir = glue_dir(args.output_dir, args.check_mode)
         return check_log(args)
@@ -384,7 +481,7 @@ def main():
     if args.ctl_url == "":
         parser.print_help(sys.stderr)
         sys.exit(1)
-    
+
     logging.info("Starting...")
     args.storage_dir = glue_dir(args.output_dir, args.ctl_url)
     return download_log(args)
