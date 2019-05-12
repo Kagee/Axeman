@@ -148,6 +148,8 @@ def download_log(args):
                     break
             except Exception as e:
                 logging.error("Exception getting block {}-{}! {}".format(start, end, e))
+                # Sleep 60 seconds between failiures
+                time.sleep(60)
 
         else:  # Notorious for else, if we didn't encounter a break our request failed 3 times D:
             logging.error("Failed to get block {}-{}, writing to fail.csv".format(start, end))
