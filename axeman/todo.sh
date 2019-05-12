@@ -7,7 +7,7 @@ else
 fi
 echo ""
 echo "[INFO] TODOs:"
-grep -v -E ' OK |(J)' status.txt | while read LINE; do
+grep -v -E ' OK ' status.txt | while read LINE; do
   LOG="$(echo "$LINE" | cut -d' ' -f 1)"
   echo "$LINE" | grep 'missing:' | sed -e "s/\(missing:[^ ]*\)/\n\1\n/g" | grep missing: | \
     while read MISSING; do 
@@ -20,6 +20,7 @@ grep -v -E ' OK |(J)' status.txt | while read LINE; do
   DIFF="$(echo "$LINE" | grep 'missing (end)' | sed -e 's/.*missing (end):[0-9]*-[0-9]* (\([0-9,]*\)).*/\1/';)"
   if [ ! -z "$END" ]; then
     END="$(echo "$END - 100" | bc)"
-    echo "./simple.py -n -u $LOG -s $END # diff: $DIFF"
+    J=" $(echo "$LINE" | grep -o '(J)')"
+    echo "./simple.py -n -u $LOG -s $END # diff: ${DIFF}${J}"
   fi
 done;
