@@ -236,9 +236,28 @@ def all_log_status2(args):
     for metafile in metafiles:
         with open(metafile) as json_file:
             meta = json.load(json_file)
+            ses = requests.Session()
+            ses.verify = not args.no_verify
+            import urllib3
+            import ssl
+            try:
+                with ses.get(certlib.CTL_INFO.format(meta['url']), timeout=10) as response:
+                    meta['tree_size'] = response.json()['tree_size']
+            except (socket.timeout, 
+                    requests.exceptions.ConnectTimeout, 
+                    urllib3.exceptions.MaxRetryError, 
+                    urllib3.exceptions.ConnectTimeoutError,
+                    requests.exceptions.SSLError,
+                    ssl.SSLError):
+                pass
             if "." in metafile:
                 a = datetime.datetime.now().replace(microsecond=0)
                 d = os.path.dirname(metafile)
+                import socket
+                jimi=""
+                if socket.gethostname() == "ember":
+                    if os.path.isfile(os.path.join(d, "JIMI")):
+                        jimi = "(J)"
                 chunks = sorted(glob.glob(os.path.join(d, '*.csv.gz')))
                 expect = 0
                 #print(meta)
@@ -266,7 +285,7 @@ def all_log_status2(args):
                 if not missing:
                     sys.stdout.write(" OK")
                 b = datetime.datetime.now().replace(microsecond=0)
-                print(f" ({b-a})")
+                print(f" ({b-a}){jimi}")
 
 
 def all_log_status_memerror(args):
