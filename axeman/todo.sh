@@ -1,9 +1,9 @@
 #!/bin/bash
-./simple.py -b | tee status.txt
-echo "[INFO] status.txt generated"
-cat status.txt
+echo "[INFO] Generating status.txt"
+./simple.py -b | tee status.txt | grep -v ' OK '
 echo ""
-grep -v ' !OK ' status.txt | while read LINE; do
+echo "[INFO] TODOs:"
+grep -v ' OK ' status.txt | while read LINE; do
   LOG="$(echo "$LINE" | cut -d' ' -f 1)"
   echo "$LINE" | grep 'missing:' | sed -e "s/\(missing:[^ ]*\)/\n\1\n/g" | grep missing: | \
     while read MISSING; do 
