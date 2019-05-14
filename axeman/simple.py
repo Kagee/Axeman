@@ -144,6 +144,15 @@ def download_log(args):
             try:
                 with ses.get(certlib.DOWNLOAD.format(log['url'], start, end), timeout=10) as response:
                     entry_list = response.json()
+                    if "error_message" in entry_list:
+                        logging.error("Got error message")
+                        if entry_list["error_code"] == 'rate_limited':
+                            logging.error("Rate limited, sleeping 30m")
+                            time.sleep(60*30)
+                            with ses.get(certlib.DOWNLOAD.format(log['url'], start, end), timeout=10) as response2:
+                                entry_list = response2.json()
+                                logging.debug("Retrieved blocks {}-{}...".format(start, end))
+                                break
                     logging.debug("Retrieved blocks {}-{}...".format(start, end))
                     break
             except Exception as e:
