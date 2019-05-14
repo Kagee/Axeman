@@ -290,57 +290,6 @@ def all_log_status2(args):
                 print(f" ({b-a}){jimi}")
 
 
-def all_log_status_memerror(args):
-    logging.getLogger().setLevel(logging.INFO)
-    logging.debug(f"Looking for logs in {args.output_dir}")
-    metafiles = sorted(glob.glob(os.path.join(args.output_dir, '*','metadata')))
-    #print(metafiles)
-    for metafile in metafiles:
-        with open(metafile) as json_file:
-            meta = json.load(json_file)
-            if True:
-                d = os.path.dirname(metafile)
-                chunks = glob.glob(os.path.join(d, '*.csv.gz'))
-                end = 0
-                nums = []
-                for chunk in chunks:
-                    t = os.path.basename(chunk)
-                    if not t.endswith(".csv.gz"):
-                        print(t)
-                        sys.exit(1)
-                    t = t[:-7]
-                    (f, l) = t.split("-")
-                    (f, l) = (int(f), int(l))
-                    for i in range(f, l+1):
-                        nums.append(i)
-                nums = sorted(set(nums))
-                diff = int(meta["tree_size"]) - len(nums)
-                if diff == 0:
-                    print(f"{metafile} OK {meta['tree_size']}/{len(nums)}")
-                elif diff < 0:
-                    print(f"{metafile} WRONG, more found ({len(nums)}) than "\
-                            f"tree_size ({meta['tree_size']}) diff:{diff}")
-                else:
-                    original_list = [x for x in range(nums[0], nums[-1] + 1)]
-                    nums = set(nums)
-                    missing = list(nums ^ set(original_list))
-                    miss_len = len(missing)
-                    sys.stdout.write(f"{metafile} diff:{diff} missing inside: ")
-                    prev = -1
-                    for x in missing:
-                        if prev == -1:
-                            prev = x
-                            sys.stdout.write(f"{prev} - ")
-                            continue
-                        if prev != x-1:
-                            sys.stdout.write(f"{prev}, {x} - ")
-                        prev = x
-                    sys.stdout.write(str(prev))
-                    if diff != miss_len:
-                        sys.stdout.write(f" missing at end: {original_list[-1]} - {meta['tree_size']}")
-                    print("")
-
-
 def all_log_status(args):
     logging.getLogger().setLevel(logging.INFO)
     logging.debug(f"Looking for logs in {args.output_dir}")
