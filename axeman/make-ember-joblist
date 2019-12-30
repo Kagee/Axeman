@@ -1,0 +1,2 @@
+#! /bin/bash
+./todo.sh 2>&1 | sort -k9 -n | grep simple | grep -v J | grep , | cut -d\# -f 1 > jobs.list
