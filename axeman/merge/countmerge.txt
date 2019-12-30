@@ -1,0 +1,4 @@
+99 ./nessie2022.ct.digicert.com.log
+160765 ./sabre.ct.comodo.com
+6415 ./dodo.ct.comodo.com
+39868 ./ct.googleapis.com.logs.xenon2021
