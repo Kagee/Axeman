@@ -23,6 +23,7 @@ import json
 # import datetime
 import netifaces
 from OpenSSL import crypto
+import psutil
 
 import certlib
 
@@ -31,6 +32,9 @@ locale.setlocale(locale.LC_ALL, 'en_US.UTF8')
 LOG_FORMAT = '[%(levelname)s:%(name)s:%(funcName)s] %(asctime)s - %(message)s'
 LOG_LEVEL = logging.DEBUG
 
+#>>> for proc in psutil.process_iter():
+#    ...   if "python" in proc.name():
+#        ...     print(proc.name(), proc.cmdline()
 
 def log_pretty_print(log, ses):
     time1 = time.time()
@@ -462,6 +466,19 @@ def main():
         sys.exit(1)
 
     logging.info("Starting...")
+
+    for proc in psutil.process_iter():
+        if "python" in proc.name():
+            #print(proc.cmdline())
+            if args.ctl_url in proc.cmdline():
+                logging.debug("Found python with same CTL URL as myself, checking pid..")
+                if os.getpid() == proc.pid:
+                    logging.debug(f"It was myself (pid:{proc.pid}), ignoring.")
+                else:
+                    logging.fatal(f"A job is already running for this CTRL URL (pid:{proc.pid}), bailing out!")
+                    logging.fatal(proc.cmdline())
+                    sys.exit(50)
+
     args.storage_dir = glue_dir(args.output_dir, args.ctl_url)
     return download_log(args)
 
