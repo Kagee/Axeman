@@ -1,2 +1,6 @@
 output
 status.txt
+merge/*/
+foo*
+jobs.list
+*.total
