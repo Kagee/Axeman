@@ -273,14 +273,14 @@ def all_log_status2(args):
                 if socket.gethostname() == "ember":
                     if os.path.isfile(os.path.join(d, "JIMI")):
                         jimi = "(J)"
-                chunks = sorted(glob.glob(os.path.join(d, '*.csv.gz')))
+                chunks = sorted(glob.glob(os.path.join(d, '*.csv.gz')) + glob.glob(os.path.join(d, '*.csv.xz')))
                 expect = 0
                 #print(meta)
                 missing = False
                 sys.stdout.write(f"{meta['url']} size:{meta['tree_size']:,}")
                 for chunk in chunks:
                     t = os.path.basename(chunk)
-                    if not t.endswith(".csv.gz"):
+                    if not (t.endswith(".csv.gz") or t.endswith(".csv.xz")):
                         print(t)
                         sys.exit(1)
                     t = t[:-7]
