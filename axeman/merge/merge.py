@@ -21,7 +21,7 @@ if len(inputfiles) < 10:
     print(f"Less than {10} inputfiles, not combining.", file=sys.stderr)
     sys.exit(2)
 
-with lzma.open(filename + ".csv.xz", "w") as xzo, gzip.open(filename + ".csv.gz", "w") as gzo, open(filename, "w") as out:
+with lzma.open(filename + ".csv.xz", "w") as xzo:
     for gz in inputfiles:
         #print(gz)
         if gz.endswith(".gz"):
@@ -32,29 +32,15 @@ with lzma.open(filename + ".csv.xz", "w") as xzo, gzip.open(filename + ".csv.gz"
             if j == int(line.split(';')[0]):
                 st = line.strip()
                 #print(st)
-                out.write(st + '\n')
                 xzo.write((st + '\n').encode("utf-8"))
-                #gzo.write((st + '\n').encode("utf-8"))
                 j += 1
             else:
                 if j < int(line.split(';')[0]):
                     print(f"Error at {gz}:", file=sys.stderr)
                     print(f"Expected {j}, got {line.split(';')[0]}", file=sys.stderr)
-                    os.unlink(filename)
                     os.unlink(filename + ".csv.xz")
-                    os.unlink(filename + ".csv.gz")
                     sys.exit(3)
-    for fin in inputfiles:
-         os.unlink(fin)
-    print(f"Moving {filename + '.csv.xz'} to {folder}/" + f'00000000000-{j-1:011}.csv.xz', file=sys.stderr)
-    os.rename(filename + ".csv.xz", folder + '/' + f"00000000000-{j-1:011}.csv.xz")
-
-    os.unlink(filename)
-    try:
-        os.unlink(filename + ".csv.xz")
-    except:
-        pass
-    try:
-        os.unlink(filename + ".csv.gz")
-    except:
-        pass
+for fin in inputfiles:
+     os.unlink(fin)
+print(f"Moving {filename + '.csv.xz'} to {folder}/" + f'00000000000-{j-1:011}.csv.xz', file=sys.stderr)
+os.rename(filename + ".csv.xz", folder + '/' + f"00000000000-{j-1:011}.csv.xz")
