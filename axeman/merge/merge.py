@@ -15,9 +15,13 @@ folder = sys.argv[1]
 filename = "combined_" + folder
 
 j = 0;
+mincombine = 10000
+inputfiles = sorted(glob.glob(folder + '/*.csv.gz') + glob.glob(folder + '/*.csv.xz'))[:mincombine]
+if len(inputfiles) < 10:
+    print(f"Less than {10} inputfiles, not combining.", file=sys.stderr)
+    sys.exit(2)
+
 with lzma.open(filename + ".csv.xz", "w") as xzo, gzip.open(filename + ".csv.gz", "w") as gzo, open(filename, "w") as out:
-    # 1k files at a time
-    inputfiles = sorted(glob.glob(folder + '/*.csv.gz') + glob.glob(folder + '/*.csv.xz'))[:1000]
     for gz in inputfiles:
         #print(gz)
         if gz.endswith(".gz"):
@@ -29,8 +33,8 @@ with lzma.open(filename + ".csv.xz", "w") as xzo, gzip.open(filename + ".csv.gz"
                 st = line.strip()
                 #print(st)
                 out.write(st + '\n')
-                #xzo.write((st + '\n').encode("utf-8"))
-                gzo.write((st + '\n').encode("utf-8"))
+                xzo.write((st + '\n').encode("utf-8"))
+                #gzo.write((st + '\n').encode("utf-8"))
                 j += 1
             else:
                 if j < int(line.split(';')[0]):
@@ -42,5 +46,15 @@ with lzma.open(filename + ".csv.xz", "w") as xzo, gzip.open(filename + ".csv.gz"
                     sys.exit(3)
     for fin in inputfiles:
          os.unlink(fin)
-    print(f"Moving {filename + '.csv.gz'} to {folder}/" + f'/00000000000-{j-1:011}.csv.gz', file=sys.stderr)
-    os.rename(filename + ".csv.gz", folder + '/' + f"00000000000-{j-1:011}.csv.gz")
+    print(f"Moving {filename + '.csv.xz'} to {folder}/" + f'00000000000-{j-1:011}.csv.xz', file=sys.stderr)
+    os.rename(filename + ".csv.xz", folder + '/' + f"00000000000-{j-1:011}.csv.xz")
+
+    os.unlink(filename)
+    try:
+        os.unlink(filename + ".csv.xz")
+    except:
+        pass
+    try:
+        os.unlink(filename + ".csv.gz")
+    except:
+        pass
